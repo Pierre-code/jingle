@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>jingle</title>
+</head>
+<body>
+<section id="">
+    <form method="post" action="jingle.php">
+
+        <fieldset>
+            <legend>Votre Jingle</legend> <!-- Titre du fieldset -->
+
+            <label for="nom">Quel est votre nom ?</label>
+            <input type="text" name="nom" id="nom" />
+
+            <label for="prenom">Quel est votre prénom ?</label>
+            <input type="text" name="prenom" id="prenom" />
+
+
+
+        </fieldset>
+        <fieldset>
+            <legend>Votre Classe</legend>
+            <label for="classe">classe</label>
+            <select name="com" id="memo" cols="38" rows="18">
+                <option value="maternelle">maternelle</option>
+                <option value="CP">CP</option>
+                <option value="CE1">CE1</option>
+                <option value="CE2">CE2</option>
+                <option value="CM1">CM1</option>
+                <option value="CM2">CM2</option>
+                <option value="6ème">6ème</option>
+                <option value="5ème">5ème</option>
+                <option value="4ème">4ème</option>
+                <option value="3ème">3ème</option>
+                <option value="Seconde">Seconde</option>
+                <option value="Première">Première</option>
+                <option value="Terminal">Terminal</option>
+                <option value="BTS">BTS</option>
+            </select>
+        </fieldset>
+
+        <fieldset>
+            <legend>Option</legend>
+            <p>
+                Votre option :<br />
+                <input type="radio" name="option" value="rouge" id="rouge" /> <label for="rouge">rouge</label>
+                <input type="radio" name="option" value="bleu" id="bleu" /> <label for="bleu">bleu</label>
+                <input type="radio" name="option" value="1" id="1" /> <label for="1">1</label>
+                <input type="radio" name="option" value="2" id="2" /> <label for="2">2</label>
+                <input type="radio" name="option" value="3" id="3" /> <label for="3">3</label>
+                <input type="radio" name="option" value="4" id="4" /> <label for="4">4</label>
+                <input type="radio" name="option" value="5" id="5" /> <label for="5">5</label>
+                <input type="radio" name="option" value="6" id="6" /> <label for="6">6</label>
+                <input type="radio" name="option" value="7" id="7" /> <label for="7">7</label>
+                <input type="radio" name="option" value="8" id="8" /> <label for="8">8</label>
+                <input type="radio" name="option" value="9" id="9" /> <label for="9">9</label>
+                <input type="radio" name="option" value="S" id="S" /> <label for="S">S</label>
+                <input type="radio" name="option" value="ES" id="ES" /> <label for="ES">ES</label>
+                <input type="radio" name="option" value="STI2D" id="STI2D" /> <label for="STI2D">STI2D</label>
+                <input type="radio" name="option" value="L" id="L" /> <label for="L">L</label>
+                <input type="radio" name="option" value="SIO" id="SIO" /> <label for="SIO">SIO</label>
+                <input type="radio" name="option" value="SN" id="SN" /> <label for="SN">SN</label>
+            </p>
+
+        </fieldset>
+        <fieldset>
+            <legend>Equipe</legend>
+            <label for="prenom">Quel est votre Equipe ?</label>
+            <input type="text" name="equipe" id="equipe" />
+        </fieldset>
+        <fieldset>
+            <legend>Votre Fichier Audio</legend>
+
+            <input type="file" name="nom" />
+
+        </fieldset>
+
+
+    </form>
+    <input type="submit" value="Envoyer" />
+</section>
+<script>
+    navigator.getUserMedia = navigator.getUserMedia ||
+        navigator.webkitGetUserMedia ||
+        navigator.mozGetUserMedia ||
+        navigator.msGetUserMedia;
+    navigator.getUserMedia(
+        {
+            audio: true
+        },
+        function (e) {
+            // success
+        },
+        function (e) {
+            // error
+            console.error(e);
+        });
+</script>
+<script>
+    navigator.getUserMedia({ audio: true },
+        function (e) {
+            // creates the audio context
+            window.AudioContext = window.AudioContext || window.webkitAudioContext;
+            context = new AudioContext();
+
+            // creates an audio node from the microphone incoming stream
+            mediaStream = context.createMediaStreamSource(e);
+            // https://developer.mozilla.org/en-US/docs/Web/API/AudioContext/createScriptProcessor
+            var bufferSize = 2048;
+            var numberOfInputChannels = 2;
+            var numberOfOutputChannels = 2;
+            if (context.createScriptProcessor) {
+                recorder = context.createScriptProcessor(bufferSize, numberOfInputChannels, numberOfOutputChannels);
+            } else {
+                recorder = context.createJavaScriptNode(bufferSize, numberOfInputChannels, numberOfOutputChannels);
+            }
+            recorder.onaudioprocess = function (e) {
+                console.log("on audio progress");
+            }
+            // we connect the recorder with the input stream
+            mediaStream.connect(recorder);
+            recorder.connect(context.destination);
+        })
+</script>
+<script>
+    var leftchannel = [];
+    var rightchannel = [];
+    var recordingLength = 0;
+
+    recorder.onaudioprocess = function (e) {
+        leftchannel.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+        rightchannel.push(new Float32Array(e.inputBuffer.getChannelData(1)));
+        recordingLength += bufferSize;
+    }
+</script>
+<script>
+    // stop recording
+    recorder.disconnect(context.destination);
+    mediaStream.disconnect(recorder);
+
+    // we flat the left and right channels down
+    // Float32Array[] => Float32Array
+    var leftBuffer = flattenArray(leftchannel, recordingLength); // flattenArray is on GitHub (see below)
+    var rightBuffer = flattenArray(rightchannel, recordingLength);
+
+    // we interleave both channels together
+    // [left[0],right[0],left[1],right[1],...]
+    var interleaved = interleave(leftBuffer, rightBuffer); // interleave is on GitHub (see below)
+
+    // we create our wav file
+    var buffer = new ArrayBuffer(44 + interleaved.length * 2);
+    var view = new DataView(buffer);
+
+    // RIFF chunk descriptor
+    writeUTFBytes(view, 0, 'RIFF');
+    view.setUint32(4, 44 + interleaved.length * 2, true);
+    writeUTFBytes(view, 8, 'WAVE');
+
+    // FMT sub-chunk
+    writeUTFBytes(view, 12, 'fmt ');
+    view.setUint32(16, 16, true); // chunkSize
+    view.setUint16(20, 1, true); // wFormatTag
+    view.setUint16(22, 2, true); // wChannels: stereo (2 channels)
+    view.setUint32(24, sampleRate, true); // dwSamplesPerSec
+    view.setUint32(28, sampleRate * 4, true); // dwAvgBytesPerSec
+    view.setUint16(32, 4, true); // wBlockAlign
+    view.setUint16(34, 16, true); // wBitsPerSample
+
+    // data sub-chunk
+    writeUTFBytes(view, 36, 'data');
+    view.setUint32(40, interleaved.length * 2, true);
+
+    // write the PCM samples
+    var index = 44;
+    var volume = 1;
+    for (var i = 0; i < interleaved.length; i++) {
+        view.setInt16(index, interleaved[i] * (0x7FFF * volume), true);
+        index += 2;
+    }
+
+    // our final blob
+    var blob = new Blob([view], { type: 'audio/wav' });
+</script>
+<script>
+    var url = window.URL.createObjectURL(blob);
+    var audio = new Audio(url);
+    audio.play();
+</script>
+</body>
+</html>
